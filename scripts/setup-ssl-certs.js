@@ -10,10 +10,10 @@ import { tmpdir } from 'node:os';
  */
 
 const setupSSLCerts = () => {
-  const { PGSSLKEY_B64, PGSSLCERT_B64, PGSSLROOTCERT_B64 } = process.env;
+  const { PGSSLKEY_B64 } = process.env;
 
   // Skip if none of the SSL cert environment variables are set
-  if (!PGSSLKEY_B64 && !PGSSLCERT_B64 && !PGSSLROOTCERT_B64) {
+  if (!PGSSLKEY_B64) {
     console.log('No SSL certificate environment variables found. Skipping SSL setup.');
     return;
   }
@@ -38,34 +38,6 @@ const setupSSLCerts = () => {
       console.log(`✓ SSL key written to ${keyPath}`);
     } catch (err) {
       console.error('Failed to write SSL key:', err);
-      process.exit(1);
-    }
-  }
-
-  // Decode and write SSL certificate
-  if (PGSSLCERT_B64) {
-    const certPath = join(certDir, 'client-cert.pem');
-    try {
-      const certContent = Buffer.from(PGSSLCERT_B64, 'base64').toString('utf-8');
-      writeFileSync(certPath, certContent, { mode: 0o600 });
-      process.env.PGSSLCERT = certPath;
-      console.log(`✓ SSL certificate written to ${certPath}`);
-    } catch (err) {
-      console.error('Failed to write SSL certificate:', err);
-      process.exit(1);
-    }
-  }
-
-  // Decode and write SSL root certificate
-  if (PGSSLROOTCERT_B64) {
-    const rootCertPath = join(certDir, 'server-ca.pem');
-    try {
-      const rootCertContent = Buffer.from(PGSSLROOTCERT_B64, 'base64').toString('utf-8');
-      writeFileSync(rootCertPath, rootCertContent, { mode: 0o600 });
-      process.env.PGSSLROOTCERT = rootCertPath;
-      console.log(`✓ SSL root certificate written to ${rootCertPath}`);
-    } catch (err) {
-      console.error('Failed to write SSL root certificate:', err);
       process.exit(1);
     }
   }
