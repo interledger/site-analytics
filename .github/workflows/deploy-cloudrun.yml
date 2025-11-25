@@ -1,7 +1,9 @@
 name: Deploy to Cloud Run
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - cloudrun
 
 env:
   PROJECT_ID: interledger-websites
