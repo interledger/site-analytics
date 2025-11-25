@@ -34,7 +34,7 @@ const setupSSLCerts = () => {
       const keyContent = Buffer.from(PGSSLKEY_B64, 'base64').toString('utf-8');
       writeFileSync(keyPath, keyContent, { mode: 0o600 });
       process.env.PGSSLKEY = keyPath;
-      console.log(`✓ SSL key written to ${keyPath}`);
+      console.log(`✓ SSL key written to ${join(process.cwd(), keyPath)}`);
     } catch (err) {
       console.error('Failed to write SSL key:', err);
       process.exit(1);
