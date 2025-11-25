@@ -1,7 +1,6 @@
 /* eslint-disable no-console */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 
 /**
  * Setup SSL certificates from base64-encoded environment variables
@@ -19,7 +18,7 @@ const setupSSLCerts = () => {
   }
 
   // Create a temporary directory for certificates
-  const certDir = join(tmpdir(), 'postgresql-certs');
+  const certDir = 'tmp/postgresql-certs';
 
   try {
     mkdirSync(certDir, { recursive: true });
