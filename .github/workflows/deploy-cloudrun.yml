@@ -1,0 +1,94 @@
+name: Deploy to Cloud Run
+
+on:
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: interledger-websites
+  REGION: us-east4
+  SERVICE_NAME: umami-analytics
+  REPOSITORY: cloud-run-source-deploy
+
+jobs:
+  deploy:
+    name: Build and Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_BUILDER }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build Docker image
+        run: |
+          IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}"
+          docker build -f Dockerfile.cloudrun \
+            -t ${IMAGE_TAG}:${{ github.run_number }} \
+            -t ${IMAGE_TAG}:latest \
+            .
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+
+      - name: Push Docker image to Artifact Registry
+        run: |
+          docker push ${{ env.IMAGE_TAG }}:${{ github.run_number }}
+          docker push ${{ env.IMAGE_TAG }}:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ env.IMAGE_TAG }}:${{ github.run_number }} \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --allow-unauthenticated \
+            --port 8080 \
+            --memory 1Gi \
+            --cpu 1 \
+            --timeout 300 \
+            --min-instances 0 \
+            --max-instances 10 \
+            --set-env-vars "DATABASE_URL=postgresql://umami:${{ secrets.DB_PASSWORD }}@localhost/umami?host=/cloudsql/${{ env.PROJECT_ID }}:${{ env.REGION }}:websites-pg" \
+            --set-env-vars "SKIP_DB_CHECK=1" \
+            --set-env-vars "APP_SECRET=${{ secrets.APP_SECRET }}" \
+            --set-env-vars "NODE_ENV=production" \
+            --set-env-vars "NEXT_TELEMETRY_DISABLED=1" \
+            --add-cloudsql-instances ${{ env.PROJECT_ID }}:${{ env.REGION }}:websites-pg \
+            --project ${{ env.PROJECT_ID }}
+
+      - name: Get Service URL
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)' \
+            --project ${{ env.PROJECT_ID }})
+          echo "::notice::Deployment successful! Service URL: ${SERVICE_URL}"
+          echo "SERVICE_URL=${SERVICE_URL}" >> $GITHUB_ENV
+
+      - name: Deployment Summary
+        run: |
+          echo "## Deployment Complete! 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Service:** ${{ env.SERVICE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ env.REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Image Tag:** ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Service URL:** ${{ env.SERVICE_URL }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Visit the service URL to verify deployment" >> $GITHUB_STEP_SUMMARY
+          echo "2. Check Cloud Run logs for any issues" >> $GITHUB_STEP_SUMMARY
+          echo "3. Monitor performance metrics" >> $GITHUB_STEP_SUMMARY
